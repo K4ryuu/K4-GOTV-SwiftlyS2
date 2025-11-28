@@ -1,0 +1,149 @@
+using Microsoft.Extensions.Logging;
+using SwiftlyS2.Shared.SchemaDefinitions;
+
+namespace K4GOTV;
+
+public sealed partial class Plugin
+{
+	private CCSGameRules? _gameRules;
+	private CancellationTokenSource? _idleTimerCts;
+
+	private bool _isRecording;
+	private string? _fileName;
+	private double _demoStartTime;
+	private double _lastPlayerCheckTime;
+	private bool _demoRequestedThisRound;
+	private readonly List<(string Name, ulong SteamId)> _requesters = [];
+
+	private void StartRecording(string baseName)
+	{
+		if (_isRecording)
+			return;
+
+		if (!_config.AutoRecord.RecordWarmup && _gameRules?.WarmupPeriod == true)
+			return;
+
+
+		var pattern = _config.AutoRecord.CropRounds
+			? _config.General.CropRoundsFileNamingPattern
+			: _config.General.RegularFileNamingPattern;
+
+		_fileName = BuildFileName(pattern, baseName);
+		var fullPath = Path.Combine(DemoDirectory, $"{_fileName}.dem");
+
+		var counter = 1;
+		while (File.Exists(fullPath))
+		{
+			_fileName = $"{_fileName}_{counter++}";
+			fullPath = Path.Combine(DemoDirectory, $"{_fileName}.dem");
+		}
+
+		Core.Engine.ExecuteCommand($"tv_record \"{fullPath}\"");
+
+		_isRecording = true;
+		_demoStartTime = Core.Engine.GlobalVars.CurrentTime;
+		_lastPlayerCheckTime = _demoStartTime;
+
+		Core.Logger.LogInformation("Recording started: {FileName}", _fileName);
+
+		if (_config.AutoRecord.StopOnIdle)
+		{
+			_idleTimerCts?.Cancel();
+			_idleTimerCts = Core.Scheduler.RepeatBySeconds(1f, CheckIdleState);
+		}
+	}
+
+	private void StopRecording()
+	{
+		_idleTimerCts?.Cancel();
+		_idleTimerCts = null;
+
+		if (!_isRecording || string.IsNullOrEmpty(_fileName))
+		{
+			ResetRecordingState();
+			return;
+		}
+
+		Core.Engine.ExecuteCommand("tv_stoprecord");
+		Core.Logger.LogInformation("Recording stopped: {FileName}", _fileName);
+
+		var duration = Core.Engine.GlobalVars.CurrentTime - _demoStartTime;
+		if (duration < _config.General.MinimumDemoDuration)
+		{
+			ResetRecordingState();
+			return;
+		}
+
+		var demoPath = Path.Combine(DemoDirectory, $"{_fileName}.dem");
+		var fileName = _fileName;
+		var requesters = _requesters.ToList();
+		var wasRequested = _demoRequestedThisRound;
+
+		// Capture main thread values before background task
+		var round = (_gameRules?.TotalRoundsPlayed ?? 0) + 1;
+		var playerCount = GetRealPlayerCount();
+
+		ResetRecordingState();
+
+		Core.Scheduler.DelayBySeconds(2f, () =>
+		{
+			if (!File.Exists(demoPath))
+			{
+				Core.Logger.LogError("Demo file not found: {Path}", demoPath);
+				return;
+			}
+
+			if (_config.DemoRequest.Enabled && !wasRequested)
+			{
+				if (_config.DemoRequest.DeleteUnused)
+					Task.Run(() => DeleteFileAsync(demoPath));
+				return;
+			}
+
+			Task.Run(() => ProcessDemoAsync(fileName, demoPath, requesters, TimeSpan.FromSeconds(duration), round, playerCount));
+		});
+	}
+
+	private void ResetRecordingState()
+	{
+		_isRecording = false;
+		_fileName = null;
+		_demoStartTime = 0;
+		_demoRequestedThisRound = false;
+	}
+
+	private void CheckIdleState()
+	{
+		if (!_isRecording) return;
+
+		var playerCount = GetRealPlayerCount();
+		if (playerCount < _config.AutoRecord.IdlePlayerCountThreshold)
+		{
+			var idleTime = Core.Engine.GlobalVars.CurrentTime - _lastPlayerCheckTime;
+			if (idleTime > _config.AutoRecord.IdleTimeSeconds)
+			{
+				Core.Logger.LogInformation("Stopping recording due to idle.");
+				StopRecording();
+			}
+		}
+		else
+		{
+			_lastPlayerCheckTime = Core.Engine.GlobalVars.CurrentTime;
+		}
+	}
+
+	private string BuildFileName(string pattern, string baseName)
+	{
+		return pattern
+			.Replace("{fileName}", baseName)
+			.Replace("{map}", Core.Engine.GlobalVars.MapName)
+			.Replace("{date}", DateTime.Now.ToString("yyyy-MM-dd"))
+			.Replace("{time}", DateTime.Now.ToString("HH-mm-ss"))
+			.Replace("{timestamp}", DateTime.Now.ToString("yyyyMMdd_HHmmss"))
+			.Replace("{round}", ((_gameRules?.TotalRoundsPlayed ?? 0) + 1).ToString())
+			.Replace("{playerCount}", GetRealPlayerCount().ToString());
+	}
+
+	private CCSGameRules? GetGameRules() =>
+		Core.EntitySystem.GetAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
+}

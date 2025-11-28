@@ -1,0 +1,8 @@
+{
+	// K4-GOTV Translations
+	"k4.general.prefix": "[lime][ [lightblue]K4-Demo [lime]]",
+
+	// Demo request messages
+	"k4.chat.demo.request.all": "[lime]{0} [default]has requested the demo to be uploaded at the end of the round",
+	"k4.chat.demo.request.self": "[default]You have requested the demo to be uploaded at the end of the round"
+}

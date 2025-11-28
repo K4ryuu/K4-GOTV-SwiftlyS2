@@ -1,0 +1,57 @@
+{
+  "username": "{webhook_name}",
+  "avatar_url": "{webhook_avatar}",
+  "content": "{message_text}",
+  "embeds": [
+    {
+      "title": "New CSGO Demo Available!",
+      "description": "A fresh demo has just been recorded on **{server_name}**. Check out the details below:",
+      "color": 7506394,
+      "fields": [
+        {
+          "name": "Map",
+          "value": "{map}",
+          "inline": true
+        },
+        {
+          "name": "Duration",
+          "value": "{length}",
+          "inline": true
+        },
+        {
+          "name": "Final Round",
+          "value": "{round}",
+          "inline": true
+        },
+        {
+          "name": "Player Count",
+          "value": "{player_count}",
+          "inline": true
+        },
+        {
+          "name": "Recording Date & Time",
+          "value": "**{date}** at **{time}**",
+          "inline": false
+        },
+        {
+          "name": "Demo Files",
+          "value": "**Original:** `{fileName}.dem`\n**Compressed:** `{fileName}.zip`",
+          "inline": false
+        },
+        {
+          "name": "Download Links",
+          "value": "{download_links}",
+          "inline": false
+        },
+        {
+          "name": "Requested By ({requester_count})",
+          "value": "**Names:** {requester_name}\n**Steam IDs:** {requester_steamid}\n**Details:**\n{requester_both}",
+          "inline": false
+        }
+      ],
+      "footer": {
+        "text": "Recorded on {server_name} • {iso_timestamp}"
+      }
+    }
+  ]
+}
