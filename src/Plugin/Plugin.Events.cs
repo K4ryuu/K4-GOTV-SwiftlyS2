@@ -19,7 +19,7 @@ public sealed partial class Plugin
 
 	private void RegisterCommands()
 	{
-		if (_config.DemoRequest.Enabled)
+		if (Config.CurrentValue.DemoRequest.Enabled)
 			Core.Command.RegisterCommand("demo", OnDemoRequest);
 	}
 
@@ -27,10 +27,9 @@ public sealed partial class Plugin
 	{
 		Core.Scheduler.DelayBySeconds(0.1f, () =>
 		{
-			_gameRules = GetGameRules();
 			Directory.CreateDirectory(DemoDirectory);
 
-			if (_config.General.DeleteEveryDemoFromServerAfterServerStart)
+			if (Config.CurrentValue.General.DeleteEveryDemoFromServerAfterServerStart)
 			{
 				Task.Run(async () =>
 				{
@@ -54,12 +53,12 @@ public sealed partial class Plugin
 
 	private HookResult OnRoundStart(EventRoundStart @event)
 	{
-		if (!_config.AutoRecord.Enabled) return HookResult.Continue;
+		if (!Config.CurrentValue.AutoRecord.Enabled) return HookResult.Continue;
 
-		if (_config.AutoRecord.CropRounds && _isRecording)
+		if (Config.CurrentValue.AutoRecord.CropRounds && _isRecording)
 			StopRecording();
 
-		if (_config.AutoRecord.CropRounds)
+		if (Config.CurrentValue.AutoRecord.CropRounds)
 			_requesters.Clear();
 
 		if (!_isRecording && GetRealPlayerCount() > 0)
@@ -76,7 +75,7 @@ public sealed partial class Plugin
 
 		_lastPlayerCheckTime = Core.Engine.GlobalVars.CurrentTime;
 
-		if (!_isRecording && _config.AutoRecord.Enabled)
+		if (!_isRecording && Config.CurrentValue.AutoRecord.Enabled)
 			StartRecording("autodemo");
 
 		return HookResult.Continue;
@@ -89,7 +88,7 @@ public sealed partial class Plugin
 
 		var localizer = Core.Translation.GetPlayerLocalizer(player);
 
-		if (_config.DemoRequest.PrintAll && !_demoRequestedThisRound)
+		if (Config.CurrentValue.DemoRequest.PrintAll && !_demoRequestedThisRound)
 		{
 			foreach (var p in Core.PlayerManager.GetAllPlayers().Where(p => p.IsValid && !p.IsFakeClient))
 			{

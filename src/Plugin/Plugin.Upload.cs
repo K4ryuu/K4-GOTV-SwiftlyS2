@@ -22,22 +22,22 @@ public sealed partial class Plugin
 			string? megaLink = null, ftpLink = null;
 
 			// FTP upload
-			if (_config.Ftp.Enabled && !string.IsNullOrEmpty(_config.Ftp.Host))
+			if (Config.CurrentValue.Ftp.Enabled && !string.IsNullOrEmpty(Config.CurrentValue.Ftp.Host))
 			{
-				var remotePath = Path.Combine(_config.Ftp.RemoteDirectory, Path.GetFileName(zipPath)).Replace("\\", "/");
+				var remotePath = Path.Combine(Config.CurrentValue.Ftp.RemoteDirectory, Path.GetFileName(zipPath)).Replace("\\", "/");
 				ftpLink = await UploadToFtpAsync(zipPath, remotePath);
 
-				if (_config.Ftp.RetentionEnabled)
+				if (Config.CurrentValue.Ftp.RetentionEnabled)
 					AddRetentionRecord("ftp", remotePath);
 			}
 
 			// Mega upload
-			if (_config.Mega.Enabled && !string.IsNullOrEmpty(_config.Mega.Email))
+			if (Config.CurrentValue.Mega.Enabled && !string.IsNullOrEmpty(Config.CurrentValue.Mega.Email))
 			{
 				var (link, nodeId) = await UploadToMegaAsync(zipPath);
 				megaLink = link;
 
-				if (_config.Mega.RetentionEnabled && !string.IsNullOrEmpty(nodeId))
+				if (Config.CurrentValue.Mega.RetentionEnabled && !string.IsNullOrEmpty(nodeId))
 					AddRetentionRecord("mega", nodeId);
 			}
 
@@ -49,10 +49,10 @@ public sealed partial class Plugin
 				await _database.StoreDemoRecordAsync(fileName, megaLink, ftpLink, requesters, duration, round, playerCount);
 
 			// Cleanup
-			if (_config.General.DeleteDemoAfterUpload)
+			if (Config.CurrentValue.General.DeleteDemoAfterUpload)
 				await DeleteFileAsync(demoPath);
 
-			if (_config.General.DeleteZippedDemoAfterUpload)
+			if (Config.CurrentValue.General.DeleteZippedDemoAfterUpload)
 				await DeleteFileAsync(zipPath);
 		}
 		catch (Exception ex)
@@ -86,7 +86,7 @@ public sealed partial class Plugin
 
 	private async Task<string> UploadToFtpAsync(string filePath, string remotePath)
 	{
-		var cfg = _config.Ftp;
+		var cfg = Config.CurrentValue.Ftp;
 		using var client = new AsyncFtpClient(cfg.Host, cfg.Username, cfg.Password, cfg.Port);
 
 		try
@@ -111,7 +111,7 @@ public sealed partial class Plugin
 		var client = new MegaApiClient();
 		try
 		{
-			await client.LoginAsync(_config.Mega.Email, _config.Mega.Password);
+			await client.LoginAsync(Config.CurrentValue.Mega.Email, Config.CurrentValue.Mega.Password);
 
 			var rootNode = (await client.GetNodesAsync()).Single(x => x.Type == NodeType.Root);
 			var uploadedNode = await client.UploadFileAsync(filePath, rootNode);
@@ -133,9 +133,9 @@ public sealed partial class Plugin
 
 	private async Task SendToDiscordAsync(string fileName, string zipPath, long fileSizeBytes, string? megaLink, string? ftpLink, List<(string Name, ulong SteamId)> requesters, TimeSpan duration, int round, int playerCount)
 	{
-		if (string.IsNullOrWhiteSpace(_config.Discord.WebhookURL))
+		if (string.IsNullOrWhiteSpace(Config.CurrentValue.Discord.WebhookURL))
 		{
-			if (_config.General.LogUploads)
+			if (Config.CurrentValue.General.LogUploads)
 				Core.Logger.LogInformation("Demo processed (no Discord webhook): {FileName}", fileName);
 
 			return;
@@ -157,10 +157,10 @@ public sealed partial class Plugin
 			downloadLinks.Add($"**FTP:** [Click Here]({ftpLink})");
 
 		var payload = template
-			.Replace("{webhook_name}", _config.Discord.WebhookName)
-			.Replace("{webhook_avatar}", _config.Discord.WebhookAvatar)
-			.Replace("{message_text}", _config.Discord.MessageText)
-			.Replace("{embed_title}", _config.Discord.EmbedTitle)
+			.Replace("{webhook_name}", Config.CurrentValue.Discord.WebhookName)
+			.Replace("{webhook_avatar}", Config.CurrentValue.Discord.WebhookAvatar)
+			.Replace("{message_text}", Config.CurrentValue.Discord.MessageText)
+			.Replace("{embed_title}", Config.CurrentValue.Discord.EmbedTitle)
 			.Replace("{map}", Core.Engine.GlobalVars.MapName)
 			.Replace("{date}", DateTime.Now.ToString("yyyy-MM-dd"))
 			.Replace("{time}", DateTime.Now.ToString("HH:mm:ss"))
@@ -185,13 +185,13 @@ public sealed partial class Plugin
 			{ new StringContent(payload, Encoding.UTF8, "application/json"), "payload_json" }
 		};
 
-		if (File.Exists(zipPath) && fileSizeMB <= MaxDiscordFileSizeMB && _config.Discord.WebhookUploadFile)
+		if (File.Exists(zipPath) && fileSizeMB <= MaxDiscordFileSizeMB && Config.CurrentValue.Discord.WebhookUploadFile)
 			content.Add(new ByteArrayContent(await File.ReadAllBytesAsync(zipPath)), "file", $"{fileName}.zip");
 
-		var response = await httpClient.PostAsync(_config.Discord.WebhookURL, content);
+		var response = await httpClient.PostAsync(Config.CurrentValue.Discord.WebhookURL, content);
 		response.EnsureSuccessStatusCode();
 
-		if (_config.General.LogUploads)
+		if (Config.CurrentValue.General.LogUploads)
 			Core.Logger.LogInformation("Demo uploaded to Discord: {FileName}", fileName);
 	}
 }

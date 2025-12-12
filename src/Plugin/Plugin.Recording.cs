@@ -5,7 +5,6 @@ namespace K4GOTV;
 
 public sealed partial class Plugin
 {
-	private CCSGameRules? _gameRules;
 	private CancellationTokenSource? _idleTimerCts;
 
 	private bool _isRecording;
@@ -20,13 +19,13 @@ public sealed partial class Plugin
 		if (_isRecording)
 			return;
 
-		if (!_config.AutoRecord.RecordWarmup && _gameRules?.WarmupPeriod == true)
+		var gameRules = Core.EntitySystem.GetGameRules();
+		if (!Config.CurrentValue.AutoRecord.RecordWarmup && gameRules?.WarmupPeriod == true)
 			return;
 
-
-		var pattern = _config.AutoRecord.CropRounds
-			? _config.General.CropRoundsFileNamingPattern
-			: _config.General.RegularFileNamingPattern;
+		var pattern = Config.CurrentValue.AutoRecord.CropRounds
+			? Config.CurrentValue.General.CropRoundsFileNamingPattern
+			: Config.CurrentValue.General.RegularFileNamingPattern;
 
 		_fileName = BuildFileName(pattern, baseName);
 		var fullPath = Path.Combine(DemoDirectory, $"{_fileName}.dem");
@@ -46,7 +45,7 @@ public sealed partial class Plugin
 
 		Core.Logger.LogInformation("Recording started: {FileName}", _fileName);
 
-		if (_config.AutoRecord.StopOnIdle)
+		if (Config.CurrentValue.AutoRecord.StopOnIdle)
 		{
 			_idleTimerCts?.Cancel();
 			_idleTimerCts = Core.Scheduler.RepeatBySeconds(1f, CheckIdleState);
@@ -68,7 +67,7 @@ public sealed partial class Plugin
 		Core.Logger.LogInformation("Recording stopped: {FileName}", _fileName);
 
 		var duration = Core.Engine.GlobalVars.CurrentTime - _demoStartTime;
-		if (duration < _config.General.MinimumDemoDuration)
+		if (duration < Config.CurrentValue.General.MinimumDemoDuration)
 		{
 			ResetRecordingState();
 			return;
@@ -80,7 +79,8 @@ public sealed partial class Plugin
 		var wasRequested = _demoRequestedThisRound;
 
 		// Capture main thread values before background task
-		var round = (_gameRules?.TotalRoundsPlayed ?? 0) + 1;
+		var gameRules = Core.EntitySystem.GetGameRules();
+		var round = (gameRules?.TotalRoundsPlayed ?? 0) + 1;
 		var playerCount = GetRealPlayerCount();
 
 		ResetRecordingState();
@@ -93,9 +93,9 @@ public sealed partial class Plugin
 				return;
 			}
 
-			if (_config.DemoRequest.Enabled && !wasRequested)
+			if (Config.CurrentValue.DemoRequest.Enabled && !wasRequested)
 			{
-				if (_config.DemoRequest.DeleteUnused)
+				if (Config.CurrentValue.DemoRequest.DeleteUnused)
 					Task.Run(() => DeleteFileAsync(demoPath));
 				return;
 			}
@@ -117,10 +117,10 @@ public sealed partial class Plugin
 		if (!_isRecording) return;
 
 		var playerCount = GetRealPlayerCount();
-		if (playerCount < _config.AutoRecord.IdlePlayerCountThreshold)
+		if (playerCount < Config.CurrentValue.AutoRecord.IdlePlayerCountThreshold)
 		{
 			var idleTime = Core.Engine.GlobalVars.CurrentTime - _lastPlayerCheckTime;
-			if (idleTime > _config.AutoRecord.IdleTimeSeconds)
+			if (idleTime > Config.CurrentValue.AutoRecord.IdleTimeSeconds)
 			{
 				Core.Logger.LogInformation("Stopping recording due to idle.");
 				StopRecording();
@@ -134,16 +134,14 @@ public sealed partial class Plugin
 
 	private string BuildFileName(string pattern, string baseName)
 	{
+		var gameRules = Core.EntitySystem.GetGameRules();
 		return pattern
 			.Replace("{fileName}", baseName)
 			.Replace("{map}", Core.Engine.GlobalVars.MapName)
 			.Replace("{date}", DateTime.Now.ToString("yyyy-MM-dd"))
 			.Replace("{time}", DateTime.Now.ToString("HH-mm-ss"))
 			.Replace("{timestamp}", DateTime.Now.ToString("yyyyMMdd_HHmmss"))
-			.Replace("{round}", ((_gameRules?.TotalRoundsPlayed ?? 0) + 1).ToString())
+			.Replace("{round}", ((gameRules?.TotalRoundsPlayed ?? 0) + 1).ToString())
 			.Replace("{playerCount}", GetRealPlayerCount().ToString());
 	}
-
-	private CCSGameRules? GetGameRules() =>
-		Core.EntitySystem.GetAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
 }

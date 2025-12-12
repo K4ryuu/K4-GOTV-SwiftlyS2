@@ -5,7 +5,22 @@ public sealed class PluginConfig
 	public string DatabaseConnection { get; set; } = "host";
 	public GeneralSettings General { get; set; } = new();
 	public DiscordSettings Discord { get; set; } = new();
-	public AutoRecordSettings AutoRecord { get; set; } = new();
+
+	private AutoRecordSettings _autoRecord = new();
+	public AutoRecordSettings AutoRecord
+	{
+		get
+		{
+			if (DemoRequest.Enabled)
+			{
+				_autoRecord.Enabled = true;
+				_autoRecord.CropRounds = true;
+			}
+			return _autoRecord;
+		}
+		set => _autoRecord = value;
+	}
+
 	public MegaSettings Mega { get; set; } = new();
 	public DemoRequestSettings DemoRequest { get; set; } = new();
 	public FtpSettings Ftp { get; set; } = new();

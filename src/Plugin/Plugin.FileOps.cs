@@ -20,7 +20,7 @@ public sealed partial class Plugin
 
 				File.Delete(path);
 
-				if (_config.General.LogDeletions)
+				if (Config.CurrentValue.General.LogDeletions)
 					Core.Logger.LogInformation("Deleted: {Path}", path);
 
 				return;
@@ -39,7 +39,7 @@ public sealed partial class Plugin
 
 	private void CleanupOldFiles()
 	{
-		var cutoff = DateTime.Now.AddHours(-_config.General.AutoCleanupFileAgeHours);
+		var cutoff = DateTime.Now.AddHours(-Config.CurrentValue.General.AutoCleanupFileAgeHours);
 
 		foreach (var file in Directory.GetFiles(DemoDirectory, "*.dem").Concat(Directory.GetFiles(DemoDirectory, "*.zip")))
 		{
@@ -75,15 +75,15 @@ public sealed partial class Plugin
 
 	private async Task CleanFtpRetentionAsync()
 	{
-		if (!_config.Ftp.RetentionEnabled)
+		if (!Config.CurrentValue.Ftp.RetentionEnabled)
 			return;
 
 		var records = LoadRetentionRecords();
-		var expired = records.Where(r => r.Service == "ftp" && (DateTime.Now - r.UploadedAt).TotalHours >= _config.Ftp.RetentionHours).ToList();
+		var expired = records.Where(r => r.Service == "ftp" && (DateTime.Now - r.UploadedAt).TotalHours >= Config.CurrentValue.Ftp.RetentionHours).ToList();
 		if (expired.Count == 0)
 			return;
 
-		var cfg = _config.Ftp;
+		var cfg = Config.CurrentValue.Ftp;
 		using var client = new AsyncFtpClient(cfg.Host, cfg.Username, cfg.Password, cfg.Port);
 		client.Config.EncryptionMode = cfg.UseSftp ? FtpEncryptionMode.Implicit : FtpEncryptionMode.None;
 		client.Config.ValidateAnyCertificate = true;
@@ -110,18 +110,18 @@ public sealed partial class Plugin
 
 	private async Task CleanMegaRetentionAsync()
 	{
-		if (!_config.Mega.RetentionEnabled)
+		if (!Config.CurrentValue.Mega.RetentionEnabled)
 			return;
 
 		var records = LoadRetentionRecords();
-		var expired = records.Where(r => r.Service == "mega" && (DateTime.Now - r.UploadedAt).TotalHours >= _config.Mega.RetentionHours).ToList();
+		var expired = records.Where(r => r.Service == "mega" && (DateTime.Now - r.UploadedAt).TotalHours >= Config.CurrentValue.Mega.RetentionHours).ToList();
 		if (expired.Count == 0)
 			return;
 
 		var client = new MegaApiClient();
 		try
 		{
-			await client.LoginAsync(_config.Mega.Email, _config.Mega.Password);
+			await client.LoginAsync(Config.CurrentValue.Mega.Email, Config.CurrentValue.Mega.Password);
 			var nodes = await client.GetNodesAsync();
 
 			var removed = new List<RetentionRecord>();
